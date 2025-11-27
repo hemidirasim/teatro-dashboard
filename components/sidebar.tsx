@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
   LayoutDashboard,
-  Database,
   Users,
   Settings,
   LogOut,
@@ -30,11 +29,6 @@ const menuItems = [
     title: "Müəlliflər",
     href: "/admin/authors",
     icon: UserPen,
-  },
-  {
-    title: "Database Tables",
-    href: "/admin/tables",
-    icon: Database,
   },
   {
     title: "Users",

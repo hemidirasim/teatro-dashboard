@@ -7,8 +7,8 @@ import { Toaster } from "sonner";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Teatro Admin Panel",
-  description: "Admin panel for Teatro management",
+  title: "Teatro - Mədəniyyət Portalı",
+  description: "Mədəniyyət, sənət və tədbirlər haqqında ən son xəbərlər və məqalələr",
 };
 
 export default function RootLayout({

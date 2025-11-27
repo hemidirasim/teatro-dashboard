@@ -75,45 +75,61 @@ export async function PUT(
       category_ids,
     } = body
 
+    // Escape function for SQL strings (MySQL safe)
+    const escape = (str: string | null | undefined): string => {
+      if (str === null || str === undefined) return "NULL"
+      const escaped = String(str)
+        .replace(/\\/g, "\\\\")
+        .replace(/'/g, "''")
+        .replace(/\n/g, "\\n")
+        .replace(/\r/g, "\\r")
+        .replace(/\t/g, "\\t")
+        .replace(/\x00/g, "\\0")
+        .replace(/\x1a/g, "\\Z")
+      return `'${escaped}'`
+    }
+
     // Update post
+    const imgUrlValue = img_url ? escape(img_url) : "''"
+    const authorValue = author ? author : "NULL"
+    const sortOrderValue = sort_order ? sort_order : "NULL"
+    const statusValue = status ?? 1
+
     await prisma.$executeRawUnsafe(`
       UPDATE \`post\`
       SET 
-        img_url = ${img_url ? `'${String(img_url).replace(/'/g, "''")}'` : "''"},
-        author = ${author || "NULL"},
-        sort_order = ${sort_order || "NULL"},
-        status = ${status ?? 1}
+        img_url = ${imgUrlValue},
+        author = ${authorValue},
+        sort_order = ${sortOrderValue},
+        status = ${statusValue}
       WHERE id = ${postId}
     `)
 
     // Update or insert post content
-    const existingContent = await prisma.$queryRawUnsafe(`
-      SELECT id FROM \`post_content\` 
-      WHERE post_id = ${postId} AND lang_id = ${lang_id ? `'${String(lang_id).replace(/'/g, "''")}'` : "'az'"}
-      LIMIT 1
-    `)
+    const langIdValue = lang_id ? escape(lang_id) : "'az'"
+    const existingContent = await prisma.$queryRawUnsafe<Array<{ id: number }>>(
+      `SELECT id FROM \`post_content\` WHERE post_id = ${postId} AND lang_id = ${langIdValue} LIMIT 1`
+    )
 
-    if ((existingContent as any[]).length > 0) {
+    const titleValue = title ? escape(title) : "''"
+    const titleSubValue = title_sub ? escape(title_sub) : "NULL"
+    const contentValue = content ? escape(content) : "''"
+    const postDateValue = post_date ? escape(post_date) : "NULL"
+
+    if (existingContent.length > 0) {
       await prisma.$executeRawUnsafe(`
         UPDATE \`post_content\`
         SET 
-          title = ${title ? `'${String(title).replace(/'/g, "''")}'` : "''"},
-          title_sub = ${title_sub ? `'${String(title_sub).replace(/'/g, "''")}'` : "NULL"},
-          content = ${content ? `'${String(content).replace(/'/g, "''")}'` : "''"},
-          post_date = ${post_date ? `'${String(post_date).replace(/'/g, "''")}'` : "NULL"}
-        WHERE post_id = ${postId} AND lang_id = ${lang_id ? `'${String(lang_id).replace(/'/g, "''")}'` : "'az'"}
+          title = ${titleValue},
+          title_sub = ${titleSubValue},
+          content = ${contentValue},
+          post_date = ${postDateValue}
+        WHERE post_id = ${postId} AND lang_id = ${langIdValue}
       `)
     } else {
       await prisma.$executeRawUnsafe(`
         INSERT INTO \`post_content\` (title, title_sub, content, post_id, post_date, lang_id)
-        VALUES (
-          ${title ? `'${String(title).replace(/'/g, "''")}'` : "''"},
-          ${title_sub ? `'${String(title_sub).replace(/'/g, "''")}'` : "NULL"},
-          ${content ? `'${String(content).replace(/'/g, "''")}'` : "''"},
-          ${postId},
-          ${post_date ? `'${String(post_date).replace(/'/g, "''")}'` : "NULL"},
-          ${lang_id ? `'${String(lang_id).replace(/'/g, "''")}'` : "'az'"}
-        )
+        VALUES (${titleValue}, ${titleSubValue}, ${contentValue}, ${postId}, ${postDateValue}, ${langIdValue})
       `)
     }
 

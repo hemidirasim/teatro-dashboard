@@ -17,12 +17,14 @@ import { useRouter } from "next/navigation"
 import { useState } from "react"
 
 const postSchema = z.object({
-  img_url: z.string().min(1, "Şəkil URL tələb olunur"),
+  img_url: z.string().min(1, "Şəkil tələb olunur"),
   title: z.string().min(1, "Başlıq tələb olunur"),
   title_sub: z.string().optional(),
-  content: z.string().min(1, "Məzmun tələb olunur"),
-  author: z.coerce.number().optional(),
-  sort_order: z.coerce.number().optional(),
+  content: z.string().refine((val) => val && val.trim() !== "" && val !== "<p></p>", {
+    message: "Məzmun tələb olunur",
+  }),
+  author: z.coerce.number().optional().nullable(),
+  sort_order: z.coerce.number().optional().nullable(),
   status: z.coerce.number().default(1),
   post_date: z.string().optional(),
   lang_id: z.string().default("az"),
@@ -72,13 +74,28 @@ export function PostForm({ initialData, authors, categories, languages }: PostFo
   const onSubmit = async (data: PostFormData) => {
     setLoading(true)
     try {
+      // Validate content manually
+      const finalContent = content || data.content || ""
+      if (!finalContent || finalContent.trim() === "" || finalContent === "<p></p>") {
+        toast.error("Məzmun tələb olunur")
+        setLoading(false)
+        return
+      }
+
       const payload = {
-        ...data,
-        content,
+        img_url: data.img_url,
+        title: data.title,
+        title_sub: data.title_sub || "",
+        content: finalContent,
+        author: data.author || null,
         post_date: data.post_date || new Date().toISOString(),
         lang_id: "az", // Default az dili
-        sort_order: data.sort_order || null, // Sıra optional
+        sort_order: null, // Sıra optional
+        status: data.status ?? 1,
+        category_ids: data.category_ids || [],
       }
+
+      console.log("Submitting payload:", { ...payload, content: finalContent.substring(0, 50) + "..." })
 
       if (initialData) {
         await axios.put(`/api/posts/${initialData.id}`, payload)
@@ -90,7 +107,9 @@ export function PostForm({ initialData, authors, categories, languages }: PostFo
       router.push("/admin/posts")
       router.refresh()
     } catch (error: any) {
-      toast.error(error.response?.data?.error || "Xəta baş verdi")
+      console.error("Form submit error:", error)
+      const errorMessage = error.response?.data?.error || error.message || "Xəta baş verdi"
+      toast.error(errorMessage)
     } finally {
       setLoading(false)
     }
@@ -146,7 +165,7 @@ export function PostForm({ initialData, authors, categories, languages }: PostFo
           value={content}
           onChange={(value) => {
             setContent(value)
-            setValue("content", value)
+            setValue("content", value, { shouldValidate: true })
           }}
           placeholder="Xəbər məzmunu"
         />

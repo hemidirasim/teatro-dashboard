@@ -12,7 +12,7 @@ export default async function PostsPage() {
   let posts: any[] = []
   
   try {
-    posts = await prisma.$queryRawUnsafe(`
+    const postsData = await prisma.$queryRawUnsafe(`
       SELECT 
         p.id,
         p.img_url,
@@ -28,6 +28,42 @@ export default async function PostsPage() {
       ORDER BY p.id DESC
       LIMIT 50
     `) as any[]
+
+    // Get all categories for all posts from xref_post_category table in one query
+    const postIds = postsData.map((p: any) => p.id)
+    let allCategories: any[] = []
+    
+    if (postIds.length > 0) {
+      const postIdsStr = postIds.join(',')
+      allCategories = await prisma.$queryRawUnsafe(`
+        SELECT 
+          xpc.post_id,
+          xpc.category_id,
+          COALESCE(cc.title, c.special_url, CONCAT('Kateqoriya #', c.id)) as title
+        FROM \`xref_post_category\` xpc
+        LEFT JOIN \`category\` c ON xpc.category_id = c.id
+        LEFT JOIN \`category_content\` cc ON c.id = cc.category_id AND cc.lang_id = 'az'
+        WHERE xpc.post_id IN (${postIdsStr})
+      `) as any[]
+    }
+
+    // Group categories by post_id
+    const categoriesByPostId = allCategories.reduce((acc: any, cat: any) => {
+      if (!acc[cat.post_id]) {
+        acc[cat.post_id] = []
+      }
+      acc[cat.post_id].push({
+        id: cat.category_id,
+        title: cat.title
+      })
+      return acc
+    }, {})
+
+    // Add categories to posts
+    posts = postsData.map((post: any) => ({
+      ...post,
+      categories: categoriesByPostId[post.id] || []
+    }))
   } catch (error: any) {
     console.error("Error fetching posts:", error)
     // Return empty array on error
@@ -61,6 +97,7 @@ export default async function PostsPage() {
                   <TableHead>ID</TableHead>
                   <TableHead>Şəkil</TableHead>
                   <TableHead>Başlıq</TableHead>
+                  <TableHead>Kateqoriyalar</TableHead>
                   <TableHead>Tarix</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Baxış</TableHead>
@@ -70,7 +107,7 @@ export default async function PostsPage() {
               <TableBody>
                 {posts.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-center">
+                    <TableCell colSpan={8} className="text-center">
                       Xəbər tapılmadı
                     </TableCell>
                   </TableRow>
@@ -87,6 +124,22 @@ export default async function PostsPage() {
                       </TableCell>
                       <TableCell className="max-w-xs truncate">
                         {post.title || 'Başlıq yoxdur'}
+                      </TableCell>
+                      <TableCell>
+                        {post.categories && post.categories.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {post.categories.map((cat: any) => (
+                              <span
+                                key={cat.id}
+                                className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800"
+                              >
+                                {cat.title}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">-</span>
+                        )}
                       </TableCell>
                       <TableCell>
                         {post.post_date 
